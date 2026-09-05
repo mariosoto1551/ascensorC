@@ -1,0 +1,16 @@
+# Artefactos de compilacion
+build/
+bin/
+*.o
+*.d
+*.a
+
+# Salida en tiempo de ejecucion
+logs/*.log
+
+# Editores / SO
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
