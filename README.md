@@ -7,9 +7,11 @@ tiempo real con `ncurses`.
 Proyecto de la materia **Sistemas Operativos** — Universidad Privada Boliviana (UPB),
 Facultad de Ingenierías y Arquitectura.
 
-> **Estado actual:** arquitectura inicial creada. Los módulos existen como archivos
-> con su contrato documentado, pero **todavía sin implementación**.
-> Ver [`docs/BITACORA.md`](docs/BITACORA.md).
+> **Estado actual:** `elevator` y `monitor` están implementados; `shared`, `colas`,
+> `persona`, `signal_handler` y `main` todavía no. **El proyecto no compila
+> todavía** — falta el resto de los módulos y aún no hubo una primera compilación.
+> El contrato exacto que hay que implementar está en
+> [`docs/BITACORA.md`](docs/BITACORA.md).
 
 ---
 
