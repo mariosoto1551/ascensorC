@@ -22,3 +22,11 @@
  * -----------------------------------------------------------------------------
  * TODO: implementar -- ver el estado de fases en docs/BITACORA.md
  * ========================================================================== */
+#ifndef MONITOR_H
+#define MONITOR_H
+
+#include "elevator.h"
+
+void *monitor_run(void *arg);
+
+#endif

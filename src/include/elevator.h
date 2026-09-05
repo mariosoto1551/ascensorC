@@ -27,4 +27,20 @@
  * Ver: docs/diseno_logico.md, secciones 3.3, 4.1 y 5.2.
  * -----------------------------------------------------------------------------
  * TODO: implementar -- ver el estado de fases en docs/BITACORA.md
+ *
  * ========================================================================== */
+
+#ifndef ELEVATOR_H
+#define ELEVATOR_H
+
+#include "shared.h"
+#include <stdbool.h>
+
+typedef struct elevator elevator_t; // Opaco
+
+elevator_t *elevator_create(int num_pisos, shared_t *shared);
+void elevator_destroy(elevator_t *e);
+void elevator_crear_persona(elevator_t *e);
+void *elevator_run(void *arg);
+
+#endif
