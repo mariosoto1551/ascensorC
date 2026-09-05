@@ -29,8 +29,7 @@ shared_status_t shared_init(shared_t *s);    // Inicializa la estructura compart
 shared_status_t shared_destroy(shared_t *s); // Libera los recursos de la estructura compartida
 
 /* Funciones de alto nivel (encapsulan lock + modificación) */
-void shared_set_terminando(shared_t *s);               // Control sobre la bandera terminando (modificación)
-void shared_set_hay_llamadas(shared_t *s, bool valor); // Control sobre la bandera hay_llamadas (modificación)
+void shared_set_terminando(shared_t *s); // Control sobre la bandera terminando (modificación)
 
 /*Lectura del contador de personas activas*/
 int shared_get_personas_activas(shared_t *s); // Obtener la cantidad exacta de personas activas

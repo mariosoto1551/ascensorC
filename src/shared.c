@@ -52,12 +52,3 @@ int shared_get_personas_activas(shared_t *s)
     pthread_mutex_unlock(&s->mutex);
     return count;
 }
-
-void shared_set_hay_llamadas(shared_t *s, bool valor)
-{
-    pthread_mutex_lock(&s->mutex);
-    s->hay_llamadas = valor;
-    if (valor)
-        pthread_cond_signal(&s->cond);
-    pthread_mutex_unlock(&s->mutex);
-}
