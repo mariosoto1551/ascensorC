@@ -44,6 +44,15 @@ void shared_set_terminando(shared_t *s)
     pthread_mutex_unlock(&s->mutex);
 }
 
+bool shared_is_terminando(shared_t *s)
+{
+    bool res;
+    pthread_mutex_lock(&s->mutex);
+    res = (s->terminando != 0);
+    pthread_mutex_unlock(&s->mutex);
+    return res;
+}
+
 int shared_get_personas_activas(shared_t *s)
 {
     int count;

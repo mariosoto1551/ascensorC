@@ -470,7 +470,14 @@ void *elevator_run(void *arg)
 
         /* --- 5. Avanzar un piso (con mutex) --- */
         pthread_mutex_lock(&s->mutex);
-        e->ascensor.piso_actual += dir;
+        if (dir == ASCENSOR_SUBIENDO && e->ascensor.piso_actual < e->num_pisos - 1)
+        {
+            e->ascensor.piso_actual += dir;
+        }
+        else if (dir == ASCENSOR_BAJANDO && e->ascensor.piso_actual > 0)
+        {
+            e->ascensor.piso_actual += dir;
+        }
         pthread_mutex_unlock(&s->mutex);
     }
 

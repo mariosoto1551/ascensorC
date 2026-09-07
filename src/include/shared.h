@@ -31,6 +31,8 @@ shared_status_t shared_destroy(shared_t *s); // Libera los recursos de la estruc
 /* Funciones de alto nivel (encapsulan lock + modificación) */
 void shared_set_terminando(shared_t *s); // Control sobre la bandera terminando (modificación)
 
+bool shared_is_terminando(shared_t *s);
+
 /*Lectura del contador de personas activas*/
 int shared_get_personas_activas(shared_t *s); // Obtener la cantidad exacta de personas activas
 

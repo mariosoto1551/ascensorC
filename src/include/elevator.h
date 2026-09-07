@@ -22,8 +22,8 @@
 /* ----------------------------------------------------------------------------
  * Tiempos de simulacion, en milisegundos.
  * -------------------------------------------------------------------------- */
-#define MS_VIAJE_PISO 30 // moverse un piso (subir o bajar)
-#define MS_PUERTAS 5     // abrir/cerrar puertas y subir/bajar gente
+#define MS_VIAJE_PISO 300 // moverse un piso (subir o bajar)
+#define MS_PUERTAS 5      // abrir/cerrar puertas y subir/bajar gente
 
 /* -----------------------------------------------------------------------------
  * Códigos de error específicos del módulo elevator

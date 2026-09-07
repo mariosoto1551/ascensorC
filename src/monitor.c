@@ -1,23 +1,5 @@
 /* =============================================================================
  * monitor.c -- Visualizacion ncurses
- * =============================================================================
- *
- * Hilo de solo lectura que pinta snapshots del sistema en pantalla.
- *
- * Contrato publico: ver include/monitor.h
- * Diseno detallado: docs/diseno_logico.md, seccion 3.6
- *
- * -----------------------------------------------------------------------------
- * DOS REGLAS QUE ESTE ARCHIVO CUMPLE AL PIE DE LA LETRA
- *
- *   1. No toca el mutex. Todo lo que necesita entra en un Snapshot, que
- *      elevator_get_snapshot() devuelve POR VALOR con el mutex ya liberado.
- *      Por eso ninguna llamada a ncurses ocurre con el mutex tomado, que es la
- *      regla de oro de la seccion 6.1.
- *
- *   2. Todo el dibujo es ASCII de 7 bits. El Makefile enlaza -lncurses (la
- *      variante angosta, no -lncursesw): los caracteres de dibujo Unicode
- *      saldrian como basura en muchas terminales.
  * ========================================================================== */
 
 #include <errno.h>
@@ -35,25 +17,28 @@
  * Disposicion de la pantalla
  * ========================================================================== */
 
-#define FILA_TITULO       0
-#define FILA_ENCABEZADO   2
-#define FILA_REGLA        3
-#define FILA_PISOS        4
+#define FILA_TITULO 0
+#define FILA_ENCABEZADO 2
+#define FILA_REGLA 3
+#define FILA_PISOS 4
 
-#define COL_PISO          2
-#define COL_SUBEN         9
-#define COL_BAJAN        27
-#define COL_CABINA       45
+// Dimensión de columnas
+#define COL_PISO 2
+#define COL_SUBEN 8
+#define COL_BAJAN 20
+#define COL_CABINA 34
 
 /* Cuantas filas se usan por debajo del edificio (resumen + ayuda). */
-#define FILAS_PIE         6
+#define FILAS_PIE 6
 
 /* Marcas maximas que se dibujan en una cola antes de pasar a "+N". */
-#define MARCAS_MAX        8
+#define MARCAS_MAX 8
 
 /* Pares de color. Se usan solo si la terminal los soporta. */
-enum {
+enum
+{
     CP_TITULO = 1,
+    CP_ENCABEZADO,
     CP_SUBEN,
     CP_BAJAN,
     CP_CABINA,
@@ -70,24 +55,27 @@ static bool usar_color = false;
 static void dormir_ms(int ms)
 {
     struct timespec ts;
-    ts.tv_sec  = (time_t)(ms / 1000);
+    ts.tv_sec = (time_t)(ms / 1000);
     ts.tv_nsec = (long)(ms % 1000) * 1000000L;
 
-    while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {
+    while (nanosleep(&ts, &ts) == -1 && errno == EINTR)
+    {
         /* SIGUSR1 es frecuente: reintentamos con lo que quedaba */
     }
 }
 
 static void color_on(int par)
 {
-    if (usar_color) {
+    if (usar_color)
+    {
         attron(COLOR_PAIR(par));
     }
 }
 
 static void color_off(int par)
 {
-    if (usar_color) {
+    if (usar_color)
+    {
         attroff(COLOR_PAIR(par));
     }
 }
@@ -95,34 +83,39 @@ static void color_off(int par)
 /* "^^^ 3", "vvvvvvvv+ 12" o "." si no hay nadie. */
 static void formatear_cola(char *dst, size_t n, int cantidad, char simbolo)
 {
-    if (cantidad <= 0) {
+    if (cantidad <= 0)
+    {
         snprintf(dst, n, ".");
         return;
     }
 
     char marcas[MARCAS_MAX + 1];
-    int  cuantas = (cantidad > MARCAS_MAX) ? MARCAS_MAX : cantidad;
-
+    int cuantas = (cantidad > MARCAS_MAX) ? MARCAS_MAX : cantidad;
     memset(marcas, simbolo, (size_t)cuantas);
     marcas[cuantas] = '\0';
 
-    snprintf(dst, n, "%s%s %d", marcas, (cantidad > MARCAS_MAX) ? "+" : "",
-             cantidad);
+    char temp[32];
+    snprintf(temp, sizeof(temp), "%s%s %d", marcas,
+             (cantidad > MARCAS_MAX) ? "+" : "", cantidad);
+
+    // Truncar a n-1 caracteres (dejando espacio para '\0')
+    snprintf(dst, n, "%.*s", (int)n - 1, temp);
 }
 
 /* "[###.....] 3/8" */
 static void formatear_cabina(char *dst, size_t n, const Snapshot *s)
 {
     char barra[CAPACIDAD + 1];
-    int  cap = (s->capacidad > 0 && s->capacidad <= CAPACIDAD) ? s->capacidad
-                                                               : CAPACIDAD;
+    int cap = (s->capacidad > 0 && s->capacidad <= CAPACIDAD) ? s->capacidad
+                                                              : CAPACIDAD;
 
-    for (int i = 0; i < cap; i++) {
-        barra[i] = (i < s->ocupacion) ? '#' : '.';
+    for (int i = 0; i < cap; i++)
+    {
+        barra[i] = (i < s->personas_dentro) ? '#' : '.';
     }
     barra[cap] = '\0';
 
-    snprintf(dst, n, "[%s] %d/%d", barra, s->ocupacion, cap);
+    snprintf(dst, n, "[%s] %d/%d", barra, s->personas_dentro, cap);
 }
 
 /* "2 5 9" con los destinos de quienes van a bordo, o "-" si va vacio. */
@@ -130,24 +123,29 @@ static void formatear_destinos(char *dst, size_t n, const Snapshot *s)
 {
     size_t usado = 0;
 
-    if (n == 0) {
+    if (n == 0)
+    {
         return;
     }
     dst[0] = '\0';
 
-    for (int i = 0; i < CAPACIDAD; i++) {
-        if (s->destinos[i] < 0) {
+    for (int i = 0; i < CAPACIDAD; i++)
+    {
+        if (s->destinos[i] < 0)
+        {
             continue;
         }
         int escrito = snprintf(dst + usado, n - usado, "%s%d",
                                (usado > 0) ? " " : "", s->destinos[i]);
-        if (escrito < 0 || (size_t)escrito >= n - usado) {
+        if (escrito < 0 || (size_t)escrito >= n - usado)
+        {
             break;
         }
         usado += (size_t)escrito;
     }
 
-    if (usado == 0) {
+    if (usado == 0)
+    {
         snprintf(dst, n, "-");
     }
 }
@@ -168,13 +166,15 @@ static void dibujar_titulo(int ancho, const Snapshot *s)
     snprintf(derecha, sizeof derecha, "PID %ld", (long)getpid());
 
     int col = ancho - (int)strlen(derecha) - COL_PISO;
-    if (col > COL_PISO + 24) {
+    if (col > COL_PISO + 24)
+    {
         color_on(CP_TENUE);
         mvprintw(FILA_TITULO, col, "%s", derecha);
         color_off(CP_TENUE);
     }
 
-    if (s->terminando) {
+    if (s->terminando)
+    {
         color_on(CP_ALERTA);
         attron(A_BOLD | A_BLINK);
         mvprintw(FILA_TITULO, COL_PISO + 24, "-- EVACUANDO EDIFICIO --");
@@ -185,15 +185,15 @@ static void dibujar_titulo(int ancho, const Snapshot *s)
 
 static void dibujar_encabezado(int ancho)
 {
-    color_on(CP_TENUE);
-    mvprintw(FILA_ENCABEZADO, COL_PISO,   "PISO");
-    mvprintw(FILA_ENCABEZADO, COL_SUBEN,  "SUBEN");
-    mvprintw(FILA_ENCABEZADO, COL_BAJAN,  "BAJAN");
+    color_on(CP_ENCABEZADO);
+    mvprintw(FILA_ENCABEZADO, COL_PISO, "PISO");
+    mvprintw(FILA_ENCABEZADO, COL_SUBEN, "SUBEN");
+    mvprintw(FILA_ENCABEZADO, COL_BAJAN, "BAJAN");
     mvprintw(FILA_ENCABEZADO, COL_CABINA, "CABINA");
 
     int largo = (ancho - 2 * COL_PISO > 0) ? ancho - 2 * COL_PISO : 0;
     mvhline(FILA_REGLA, COL_PISO, '-', largo);
-    color_off(CP_TENUE);
+    color_off(CP_ENCABEZADO);
 }
 
 /*
@@ -207,36 +207,44 @@ static void dibujar_edificio(const Snapshot *s)
     char texto_cabina[32];
     char texto_destinos[64];
 
-    for (int piso = s->num_pisos - 1; piso >= 0; piso--) {
+    for (int piso = s->num_pisos - 1; piso >= 0; piso--)
+    {
         int fila = FILA_PISOS + (s->num_pisos - 1 - piso);
 
         /* --- Numero de piso --- */
-        if (piso == PISO_PB) {
+        if (piso == PISO_PB)
+        {
             mvprintw(fila, COL_PISO, "PB");
-        } else {
+        }
+        else
+        {
             mvprintw(fila, COL_PISO, "P%d", piso);
         }
 
         /* --- Cola de subida --- */
         formatear_cola(texto_suben, sizeof texto_suben, s->colas_subida[piso], '^');
         color_on(CP_SUBEN);
-        mvprintw(fila, COL_SUBEN, "%-16s", texto_suben);
+        mvprintw(fila, COL_SUBEN, "%-10s", texto_suben);
         color_off(CP_SUBEN);
 
-        /* --- Cola de bajada. En PB nadie puede bajar mas: se marca con "-" --- */
-        if (piso == PISO_PB) {
+        /* --- Cola de bajada --- */
+        if (piso == PISO_PB)
+        {
             color_on(CP_TENUE);
-            mvprintw(fila, COL_BAJAN, "%-16s", "-");
+            mvprintw(fila, COL_BAJAN, "%-10s", "-");
             color_off(CP_TENUE);
-        } else {
+        }
+        else
+        {
             formatear_cola(texto_bajan, sizeof texto_bajan, s->colas_bajada[piso], 'v');
             color_on(CP_BAJAN);
-            mvprintw(fila, COL_BAJAN, "%-16s", texto_bajan);
+            mvprintw(fila, COL_BAJAN, "%-10s", texto_bajan);
             color_off(CP_BAJAN);
         }
 
-        /* --- La cabina, dibujada solo en el piso donde esta --- */
-        if (piso == s->piso_ascensor) {
+        /* --- La cabina --- */
+        if (piso == s->piso_ascensor)
+        {
             formatear_cabina(texto_cabina, sizeof texto_cabina, s);
             formatear_destinos(texto_destinos, sizeof texto_destinos, s);
 
@@ -259,21 +267,28 @@ static void dibujar_pie(const Snapshot *s)
     mvprintw(fila, COL_PISO,
              "Ascensor: %-8s  Piso: %-2d  A bordo: %d/%d",
              elevator_estado_texto(s->estado_ascensor),
-             s->piso_ascensor, s->ocupacion, s->capacidad);
+             s->piso_ascensor, s->personas_dentro, s->capacidad);
+    clrtoeol();
 
     mvprintw(fila + 1, COL_PISO,
              "Esperando: %-4d  En el edificio: %-4d",
              s->total_esperando, s->personas_activas);
 
+    clrtoeol();
+
     color_on(CP_TENUE);
-    if (s->terminando) {
+    if (s->terminando)
+    {
         mvprintw(fila + 3, COL_PISO,
                  "Apagado en curso: esperando a que el edificio quede vacio...");
-    } else {
+    }
+    else
+    {
         mvprintw(fila + 3, COL_PISO,
-                 "[kill -SIGUSR1 %ld] entra una persona    [Ctrl+C] salida ordenada",
+                 "[kill -USR1 %ld] entra una persona    [Ctrl+C] salida ordenada",
                  (long)getpid());
     }
+    clrtoeol();
     color_off(CP_TENUE);
 }
 
@@ -295,9 +310,12 @@ static void dibujar(const Snapshot *s)
 
     int necesario = FILA_PISOS + s->num_pisos + FILAS_PIE;
 
-    if (alto < necesario || ancho < MONITOR_MIN_COLUMNAS) {
+    if (alto < necesario || ancho < MONITOR_MIN_COLUMNAS)
+    {
         dibujar_pantalla_chica(alto, ancho, necesario);
-    } else {
+    }
+    else
+    {
         dibujar_titulo(ancho, s);
         dibujar_encabezado(ancho);
         dibujar_edificio(s);
@@ -324,15 +342,17 @@ static void iniciar_ncurses(void)
     keypad(stdscr, TRUE);
 
     usar_color = (has_colors() == TRUE);
-    if (usar_color) {
+    if (usar_color)
+    {
         start_color();
         use_default_colors();
-        init_pair(CP_TITULO, COLOR_CYAN,    -1);
-        init_pair(CP_SUBEN,  COLOR_YELLOW,  -1);
-        init_pair(CP_BAJAN,  COLOR_MAGENTA, -1);
-        init_pair(CP_CABINA, COLOR_GREEN,   -1);
-        init_pair(CP_ALERTA, COLOR_RED,     -1);
-        init_pair(CP_TENUE,  COLOR_BLUE,    -1);
+        init_pair(CP_TITULO, COLOR_CYAN, -1);
+        init_pair(CP_ENCABEZADO, COLOR_GREEN, -1);
+        init_pair(CP_SUBEN, COLOR_CYAN, -1);
+        init_pair(CP_BAJAN, COLOR_MAGENTA, -1);
+        init_pair(CP_CABINA, COLOR_YELLOW, -1);
+        init_pair(CP_ALERTA, COLOR_RED, -1);
+        init_pair(CP_TENUE, COLOR_BLUE, -1);
     }
 }
 
@@ -341,30 +361,35 @@ static void iniciar_ncurses(void)
  * ========================================================================== */
 
 /*
- * Termina cuando el edificio quedo vacio DESPUES de un pedido de apagado, y no
- * apenas se pide el apagado. Si saliera antes, la terminal se restauraria de
- * golpe y la evacuacion -que es la parte mas interesante de mirar- ocurriria a
- * ciegas. Ver la nota de desviacion en docs/BITACORA.md.
+ * Termina cuando el edificio quedo vacio DESPUES de un pedido de apagado.
+ * Se verifica que no haya personas activas, ni personas_dentro, ni colas.
  */
 static bool termino_todo(const Snapshot *s)
 {
-    return s->terminando && s->personas_activas == 0 && s->ocupacion == 0;
+    return s->terminando &&
+           s->personas_activas == 0 &&
+           s->personas_dentro == 0 &&
+           s->total_esperando == 0; /* <-- CORRECCIÓN: también esperamos colas vacías */
 }
 
 void *monitor_run(void *arg)
 {
     elevator_t *e = (elevator_t *)arg;
 
-    if (e == NULL) {
+    if (e == NULL)
+    {
         return NULL;
     }
 
     /* Sin terminal no hay nada que dibujar: se acompana la simulacion en
        silencio en vez de reventar ncurses contra un archivo o una tuberia. */
-    if (!isatty(STDOUT_FILENO)) {
-        for (;;) {
+    if (!isatty(STDOUT_FILENO))
+    {
+        for (;;)
+        {
             Snapshot s = elevator_get_snapshot(e);
-            if (termino_todo(&s)) {
+            if (termino_todo(&s))
+            {
                 break;
             }
             dormir_ms(MONITOR_REFRESCO_MS);
@@ -374,11 +399,13 @@ void *monitor_run(void *arg)
 
     iniciar_ncurses();
 
-    for (;;) {
+    for (;;)
+    {
         Snapshot s = elevator_get_snapshot(e);
         dibujar(&s);
 
-        if (termino_todo(&s)) {
+        if (termino_todo(&s))
+        {
             break;
         }
         dormir_ms(MONITOR_REFRESCO_MS);
